@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ovr"
+version = "0.1.0"
+description = "Outstrumental Variable Regression"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.9"
+dependencies = ["torch>=2.8.0,<3", "numpy>=2.0.2,<3", "pandas>=2.3.3,<4", "matplotlib>=3.9.4,<4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

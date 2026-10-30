@@ -1,0 +1,74 @@
+{
+  "synthetic": {
+    "sample_sizes": [
+      500,
+      1000,
+      2000,
+      4000,
+      10000
+    ],
+    "ablation_sample_sizes": [
+      10000
+    ],
+    "replications": 10,
+    "workers": 8,
+    "main_seed": 20260807,
+    "shared_decoder_seed": 20260808,
+    "contrast_epochs": 200,
+    "residual_epochs": 300,
+    "methods": [
+      "DOVR",
+      "SOVR",
+      "OLS",
+      "Environment FE",
+      "Anchor-g2",
+      "LNN"
+    ],
+    "main_scenarios": [
+      "low_rank",
+      "nonlinear_clean_environment",
+      "recoverable_state"
+    ],
+    "shared_scenarios": [
+      "shared_decoder_no_ex",
+      "shared_decoder_additive_ex",
+      "shared_decoder_latent_outcome_exposure_shifts"
+    ]
+  },
+  "kuairand": {
+    "seed": 20260808,
+    "replications": 10,
+    "per_user_environment_cap": 100000,
+    "lnn_epochs": 120
+  },
+  "lnn": {
+    "epochs": 200,
+    "hidden": 64,
+    "batch_size": 1024,
+    "weight_decays": [
+      0.0,
+      0.0001,
+      0.01
+    ],
+    "initializations": [
+      "fe",
+      "zero"
+    ],
+    "patience": 30
+  },
+  "tau_sweep": {
+    "sample_sizes": [
+      1000,
+      10000
+    ],
+    "scales": [
+      0,
+      0.25,
+      0.5,
+      1,
+      2,
+      4
+    ],
+    "replications": 10
+  }
+}
