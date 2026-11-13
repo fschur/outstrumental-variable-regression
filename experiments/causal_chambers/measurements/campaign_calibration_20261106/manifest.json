@@ -1,0 +1,83 @@
+{
+  "stage": "calibration",
+  "created_utc": "2026-11-06T21:29:05.640320+00:00",
+  "chamber_id": "lt-test-b0ni",
+  "config": "standard",
+  "seed": 2026110601,
+  "n_measurements": 1800,
+  "n_blocks": 24,
+  "fixed_controls": {
+    "green": 0,
+    "blue": 0,
+    "pol_1": 0,
+    "led_1_ir": 0,
+    "led_1_uv": 0,
+    "led_2_ir": 0,
+    "led_2_uv": 0,
+    "led_3_uv": 0,
+    "t_ir_1": 3,
+    "t_vis_1": 3,
+    "t_ir_2": 3,
+    "t_vis_2": 3,
+    "t_ir_3": 3,
+    "t_vis_3": 3,
+    "diode_ir_1": 2,
+    "diode_ir_2": 2,
+    "diode_ir_3": 2,
+    "diode_vis_1": 1,
+    "diode_vis_2": 1,
+    "diode_vis_3": 1
+  },
+  "wait_ms": 50,
+  "red_levels": [
+    32,
+    72,
+    112,
+    152,
+    192
+  ],
+  "angles": [
+    0.0,
+    30.0,
+    60.0
+  ],
+  "schedule_sha256": "1e1e108beb23420625bbe93dfb3c768809507796c33a2f4569a6d2a5e9418693",
+  "status": "DONE",
+  "treatment_levels": [
+    8,
+    12,
+    16,
+    20,
+    24
+  ],
+  "pilot_targets": {
+    "relative_slope_difference": 0.05,
+    "relative_curvature": 0.02,
+    "sensor_ceiling": 65535,
+    "interpretation": "Exploratory tolerances; inspect uncertainty and all cells, not just null-test p-values."
+  },
+  "submitted_utc": "2026-11-06T21:29:14.068559+00:00",
+  "experiment_id": "d70b0365-4397-4873-a598-5d0542c6123c",
+  "last_checked_utc": "2026-11-06T21:36:42.673338+00:00",
+  "submitted_on": 1794000555.433,
+  "current_instruction": 10820,
+  "total_instructions": 10820,
+  "measurements_sha256": "e2083476d7c0873bbd336987e079d31363877cdb71bf06dae0c79e6c0d8f495a",
+  "downloaded_utc": "2026-11-06T21:36:42.911599+00:00",
+  "validated_rows": 1800,
+  "full_measurements_sha256": "08e87e1e63b4342503609f874eb50ff563a91636ce97f42509a8fc850868f2de",
+  "full_measurements_columns": 106,
+  "columns": [
+    "block_id",
+    "flag",
+    "kind",
+    "E",
+    "X",
+    "Y",
+    "H",
+    "red",
+    "led_3_ir",
+    "ir_3",
+    "pol_2"
+  ]
+}

@@ -55,6 +55,8 @@ python -m experiments.reproduce --download --workers 8
 
 This downloads the public KuaiRand-Pure release from its official Zenodo archive, verifies its checksum, and runs the full configured grids. The full neural-network experiments are substantially more expensive than the quick check. Use fewer workers if memory is limited. Results go to `results/paper`; figures and LaTeX tables go to `figures/paper`.
 
+The light-tunnel experiment is not part of this command. It has its own environment and commands, described in [`experiments/causal_chambers/README.md`](experiments/causal_chambers/README.md).
+
 To inspect commands, rerun exports, or select studies:
 
 ```sh
@@ -81,6 +83,7 @@ python -m experiments.reproduce --studies kuairand --quick --data-dir data/kuair
 | Component ablation | Five nested variants at 10,000 observations; six settings and ten paired replications, giving 60 comparisons per component |
 | Smoothing-scale sweep | Scales 0, 0.25, 0.5, 1, 2, 4 at sample sizes 1,000 and 10,000; ten replications |
 | KuaiRand | Ten training/reference splits; six video attributes |
+| Light tunnel (Causal Chambers) | Three assignments, ten physical repetitions each; 500 to 5,000 confounded measurements per environment; see `experiments/causal_chambers` |
 
 The rendered outputs are limited to the following figures and tables:
 
@@ -102,4 +105,4 @@ The main and supplementary figures are exported as `synthetic_main` and `synthet
 
 For KuaiRand, training/reference splits are made within user-policy cells. Training contains interactions from both policies; the held-out random-insertion interactions supply one global six-dimensional reference regression. Users and videos can occur in both halves. Internal estimator splits keep users disjoint. The reference measures a linear projection under random video assignment; it need not equal the causal effect when other confounding remains.
 
-`configs/paper.json` records the grids and seeds. No datasets or fitted results are bundled. KuaiRand retains its own data license, supplied with the official archive.
+`configs/paper.json` records the grids and seeds. Apart from the light-tunnel measurements in `experiments/causal_chambers/measurements`, no datasets or fitted results are bundled. KuaiRand retains its own data license, supplied with the official archive.

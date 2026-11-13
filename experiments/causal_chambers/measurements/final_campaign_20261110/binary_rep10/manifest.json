@@ -1,0 +1,91 @@
+{
+  "stage": "smoke",
+  "created_utc": "2026-11-10T14:34:46.083576+00:00",
+  "chamber_id": "lt-test-b0ni",
+  "config": "standard",
+  "seed": 2026111020,
+  "n_measurements": 28000,
+  "n_blocks": 100,
+  "fixed_controls": {
+    "green": 0,
+    "blue": 0,
+    "pol_1": 0,
+    "led_1_ir": 0,
+    "led_1_uv": 0,
+    "led_2_ir": 0,
+    "led_2_uv": 0,
+    "led_3_uv": 0,
+    "t_ir_1": 3,
+    "t_vis_1": 3,
+    "t_ir_2": 3,
+    "t_vis_2": 3,
+    "t_ir_3": 3,
+    "t_vis_3": 3,
+    "diode_ir_1": 2,
+    "diode_ir_2": 2,
+    "diode_ir_3": 2,
+    "diode_vis_1": 1,
+    "diode_vis_2": 1,
+    "diode_vis_3": 1
+  },
+  "wait_ms": 50,
+  "red_levels": [
+    32,
+    192
+  ],
+  "angles": [
+    0.0,
+    60.0,
+    20.0,
+    40.0
+  ],
+  "schedule_sha256": "78953e0db6ce3e17b0ff500db3e71ff553958a21d52d93fde9c03afdf74056a5",
+  "status": "DONE",
+  "center": 16,
+  "scale": 8,
+  "sign_probability": 0.8,
+  "h_prior": 0.5,
+  "beta_parameters": [
+    [
+      2,
+      5
+    ],
+    [
+      5,
+      2
+    ]
+  ],
+  "train_per_environment": 5000,
+  "reference_per_environment": 2000,
+  "fitting": "Existing OVR defaults; fixed seeds 0,1,2; acquisition-block splits; no tuning against reference.",
+  "design": "binary",
+  "replicate_id": "final_binary_rep10",
+  "n_parts": 4,
+  "parts_file": "parts.json",
+  "measurements_sha256": "a2bf6a9eddd6cba568528b9b6b689ddebcd4c8299b9fb117ed1eab40212841f6",
+  "raw_measurements_sha256": "aa57ae4b2293391dc8723abf4aa32387fcbab7148471f70af9149e441e5714aa",
+  "parts_sha256": "a85d5e063fc26dec1cef86a04faa03c51a99f211062aeaaef71d888957c4fce2",
+  "experiment_ids": [
+    "fb5faa6b-dd42-4ddd-86a0-aa2b50beaaf9",
+    "c812cbb2-e78d-467c-ad4e-b08590df34d5",
+    "a089be77-2e0a-48c1-81ce-b776a2bf9caa",
+    "a217c9fe-937b-49c9-b9a4-e59b57d28590"
+  ],
+  "downloaded_utc": "2026-11-12T06:20:46.417245+00:00",
+  "validated_rows": 28000,
+  "full_measurements_sha256": "37a8abd5f335e3771278efa372c190459e3cc508230589181a50a9e3cfd79145",
+  "full_measurements_columns": 106,
+  "columns": [
+    "block_id",
+    "flag",
+    "kind",
+    "E",
+    "X",
+    "Y",
+    "H",
+    "red",
+    "led_3_ir",
+    "ir_3",
+    "pol_2"
+  ]
+}

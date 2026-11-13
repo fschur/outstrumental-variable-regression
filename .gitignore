@@ -10,3 +10,7 @@ build/
 dist/
 .pytest_cache/
 .mpl_cache/
+context/
+.credentials
+experiments/causal_chambers/data_backup_*/
+.venv-chamber/
