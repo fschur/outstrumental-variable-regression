@@ -103,3 +103,19 @@ The main and supplementary figures are exported as `synthetic_main` and `synthet
 For KuaiRand, training/reference splits are made within user-policy cells. Training contains interactions from both policies; the held-out random-insertion interactions supply one global six-dimensional reference regression. Users and videos can occur in both halves. Internal estimator splits keep users disjoint. The reference measures a linear projection under random video assignment; it need not equal the causal effect when other confounding remains.
 
 `configs/paper.json` records the grids and seeds. No datasets or fitted results are bundled. KuaiRand retains its own data license, supplied with the official archive.
+
+## PM2.5 and daily mortality
+
+From the repository root, use the Python environment in [Installation](#installation). The table was reproduced with SciPy 1.13.1, R 4.6.1 and `gam` 1.22-7.
+
+```sh
+python -m pip install scipy==1.13.1
+Rscript --vanilla -e 'install.packages("gam", repos="https://cloud.r-project.org")'
+python -m experiments.pollution.table
+```
+
+The command downloads the inputs into `data/pollution/` and writes one table to `results/pollution/table.csv`. Each of the 7,726 observations is one day in Chicago, Dallas/Fort Worth, Houston, Los Angeles, or New York in 2000–2005. The exposure is two-day mean PM2.5, restricted to the overlap of the cities' central 90% ranges (7.41–21.90 µg/m³). City defines the environment. All methods adjust for season and weekday. The neural estimators keep each calendar month in one split across cities. Weather-adjusted FE also uses city-specific splines of four-day temperature and same-day humidity.
+
+The table reports additional daily nonaccidental deaths per million for a PM2.5 increase from 10 to 20 µg/m³, and the percentage change from refitting on log mortality. The observational reference fits a weather-adjusted Poisson model in each city, then averages the predicted rates at 10 and 20 over the same metro-days. All percentage-point errors use this pooled reference. [Schwartz, Dockery and Neas (1996)](https://doi.org/10.1080/10473289.1996.10467528)
+
+Inputs come from the [NMMAPS mortality and county files](https://github.com/jhu-advdatasci/2018/tree/6effedaf245d531f9096863260d867cf583192a6/data/NMMAPS_storm/mortality), [US Census county populations](https://www.census.gov/data/datasets/time-series/demo/popest/intercensal-2000-2010-counties.html), [EPA daily PM2.5 monitors](https://aqs.epa.gov/aqsweb/airdata/download_files.html), [ERA5-Land via Open-Meteo](https://open-meteo.com/en/docs/historical-weather-api), and [airport weather via the Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/request/download.phtml).

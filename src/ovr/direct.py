@@ -142,6 +142,7 @@ class DirectOVR(_OVRCore):
         T: np.ndarray,
         contrast: np.ndarray,
         local_folds: list[np.ndarray],
+        controls: Optional[np.ndarray] = None,
     ) -> tuple[np.ndarray, np.ndarray, list[Callable]]:
         """Cross-fit second-stage residuals with the full fixed contrast."""
         n, d = X.shape
@@ -149,13 +150,15 @@ class DirectOVR(_OVRCore):
         residualized_Y = np.zeros(n)
         predictors: list[Callable] = []
         all_local = np.arange(n)
-        onehot = _onehot(T, self.n_environments_)
+        features = np.column_stack((contrast, _onehot(T, self.n_environments_)))
+        if controls is not None:
+            features = np.column_stack((features, controls))
         targets = np.hstack([X, Y[:, None]])
 
         for fold_id, test_idx in enumerate(local_folds):
             train_idx = np.setdiff1d(all_local, test_idx, assume_unique=True)
-            feat_train = np.hstack([contrast[train_idx], onehot[train_idx]])
-            feat_test = np.hstack([contrast[test_idx], onehot[test_idx]])
+            feat_train = features[train_idx]
+            feat_test = features[test_idx]
             predict = _train_regressor(
                 feat_train,
                 targets[train_idx],
@@ -173,13 +176,32 @@ class DirectOVR(_OVRCore):
 
         return residualized_X, residualized_Y, predictors
 
+    def _contrast_inputs(self, X: np.ndarray, controls: Optional[np.ndarray], *, fitting=False) -> np.ndarray:
+        X = np.asarray(X, dtype=float)
+        if X.ndim != 2 or X.shape[1] != self.d_:
+            raise ValueError(f"X must have shape (n, {self.d_}).")
+        inputs = X
+        if controls is not None:
+            controls = np.asarray(controls, dtype=float)
+            if controls.ndim != 2 or len(controls) != len(X) or not np.isfinite(controls).all():
+                raise ValueError("controls must be a finite matrix with one row per observation.")
+            inputs = np.column_stack((X, controls))
+        if fitting:
+            self.n_contrast_inputs_ = inputs.shape[1]
+        elif inputs.shape[1] != getattr(self, "n_contrast_inputs_", self.d_):
+            raise ValueError("Pass the same number of control columns used during fitting.")
+        return inputs
+
     def fit(
         self,
         X: np.ndarray,
         Y: np.ndarray,
         T: np.ndarray,
         groups: Optional[np.ndarray] = None,
+        *,
+        controls: Optional[np.ndarray] = None,
     ):
+        """Optional observed controls enter both nuisance stages, leaving X as the slope target."""
         X_arr = np.asarray(X, dtype=float)
         Y_arr = np.asarray(Y, dtype=float).ravel()
         T_raw = np.asarray(T)
@@ -189,6 +211,7 @@ class DirectOVR(_OVRCore):
         T_arr = T_raw.astype(int).ravel()
         self._validate_direct_split_input(X_arr, Y_arr, T_arr)
         self._prepare(X_arr, Y_arr, T_arr)
+        inputs = self._contrast_inputs(self.X_, controls, fitting=True)
 
         groups_arr = None if groups is None else _validate_groups(groups, X_arr.shape[0])
         self.groups_ = groups_arr
@@ -215,7 +238,7 @@ class DirectOVR(_OVRCore):
 
         # The generated regressor is learned once, exclusively on I_C.
         contrast_model = self._fit_joint(
-            self.X_[contrast_idx],
+            inputs[contrast_idx],
             self.Y_[contrast_idx],
             self.T_[contrast_idx],
             self.contrast_lambda,
@@ -225,7 +248,7 @@ class DirectOVR(_OVRCore):
         # the original outcome scale.  Restoring that scale is immaterial for
         # residualization but necessary for interpretable oracle diagnostics.
         contrast = (
-            self._contrast_np(contrast_model, self.X_[estimation_idx])
+            self._contrast_np(contrast_model, inputs[estimation_idx])
             * float(contrast_model._ysd)
         )
 
@@ -239,7 +262,8 @@ class DirectOVR(_OVRCore):
                 T_beta, groups_arr[estimation_idx], self.n_folds, rng
             )
         residualized_X, residualized_Y, predictors = self._crossfit_direct_residuals(
-            X_beta, Y_beta, T_beta, contrast, local_folds
+            X_beta, Y_beta, T_beta, contrast, local_folds,
+            controls=inputs[estimation_idx, self.d_:],
         )
         beta, Sigma = self._solve_beta(residualized_X, residualized_Y)
 
@@ -265,13 +289,11 @@ class DirectOVR(_OVRCore):
         self.n_estimation_ = int(estimation_idx.size)
         return self
 
-    def predict_contrast(self, X: np.ndarray) -> np.ndarray:
+    def predict_contrast(self, X: np.ndarray, *, controls: Optional[np.ndarray] = None) -> np.ndarray:
         """Evaluate the first-split contrast model on new exposures."""
         if self.contrast_model_ is None:
             raise RuntimeError("call fit() before predict_contrast().")
-        X_arr = np.asarray(X, dtype=float)
-        if X_arr.ndim != 2 or X_arr.shape[1] != self.d_:
-            raise ValueError(f"X must have shape (n, {self.d_}).")
-        return self._contrast_np(self.contrast_model_, X_arr) * float(
+        inputs = self._contrast_inputs(X, controls)
+        return self._contrast_np(self.contrast_model_, inputs) * float(
             self.contrast_model_._ysd
         )

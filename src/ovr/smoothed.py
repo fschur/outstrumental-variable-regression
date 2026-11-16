@@ -273,6 +273,7 @@ class SmoothedOVR(DirectOVR):
         contrast: np.ndarray,
         disagreement: np.ndarray,
         local_folds: list[np.ndarray],
+        controls: Optional[np.ndarray] = None,
     ) -> tuple[
         np.ndarray,
         np.ndarray,
@@ -288,7 +289,9 @@ class SmoothedOVR(DirectOVR):
         fold_covariances: list[np.ndarray] = []
         jitter_covariances: list[np.ndarray] = []
         all_local = np.arange(n)
-        onehot = _onehot(T, self.n_environments_)
+        features = np.column_stack((contrast, _onehot(T, self.n_environments_)))
+        if controls is not None:
+            features = np.column_stack((features, controls))
         targets = np.hstack([X, Y[:, None]])
         contrast_dim = contrast.shape[1]
 
@@ -300,8 +303,8 @@ class SmoothedOVR(DirectOVR):
             jitter_covariance = (
                 self.jitter_scale**2 * disagreement_covariance
             )
-            feat_train = np.hstack([contrast[train_idx], onehot[train_idx]])
-            feat_test = np.hstack([contrast[test_idx], onehot[test_idx]])
+            feat_train = features[train_idx]
+            feat_test = features[test_idx]
             predict = _train_uncertainty_smoothed_regressor(
                 feat_train,
                 targets[train_idx],
@@ -336,7 +339,10 @@ class SmoothedOVR(DirectOVR):
         Y: np.ndarray,
         T: np.ndarray,
         groups: Optional[np.ndarray] = None,
+        *,
+        controls: Optional[np.ndarray] = None,
     ):
+        """Optional observed controls enter both nuisance stages and receive no smoothing noise."""
         X_arr = np.asarray(X, dtype=float)
         Y_arr = np.asarray(Y, dtype=float).ravel()
         T_raw = np.asarray(T)
@@ -346,6 +352,7 @@ class SmoothedOVR(DirectOVR):
         T_arr = T_raw.astype(int).ravel()
         self._validate_uncertainty_smoothed_input(X_arr, Y_arr, T_arr)
         self._prepare(X_arr, Y_arr, T_arr)
+        inputs = self._contrast_inputs(self.X_, controls, fitting=True)
 
         groups_arr = None if groups is None else _validate_groups(groups, X_arr.shape[0])
         self.groups_ = groups_arr
@@ -385,14 +392,14 @@ class SmoothedOVR(DirectOVR):
         self.first_stage_fit_count_ = 0
         if groups_arr is None:
             model_a = self._fit_joint_member(
-                self.X_[member_a_idx],
+                inputs[member_a_idx],
                 self.Y_[member_a_idx],
                 self.T_[member_a_idx],
                 seed=self.seed + 1_000,
             )
         else:
             model_a = self._fit_joint_member(
-                self.X_[member_a_idx],
+                inputs[member_a_idx],
                 self.Y_[member_a_idx],
                 self.T_[member_a_idx],
                 seed=self.seed + 1_000,
@@ -401,14 +408,14 @@ class SmoothedOVR(DirectOVR):
         self.first_stage_fit_count_ += 1
         if groups_arr is None:
             model_b = self._fit_joint_member(
-                self.X_[member_b_idx],
+                inputs[member_b_idx],
                 self.Y_[member_b_idx],
                 self.T_[member_b_idx],
                 seed=self.seed + 2_000,
             )
         else:
             model_b = self._fit_joint_member(
-                self.X_[member_b_idx],
+                inputs[member_b_idx],
                 self.Y_[member_b_idx],
                 self.T_[member_b_idx],
                 seed=self.seed + 2_000,
@@ -419,8 +426,9 @@ class SmoothedOVR(DirectOVR):
         X_beta = self.X_[estimation_idx]
         Y_beta = self.Y_[estimation_idx]
         T_beta = self.T_[estimation_idx]
-        contrast_a = self._contrast_np(model_a, X_beta) * float(model_a._ysd)
-        contrast_b = self._contrast_np(model_b, X_beta) * float(model_b._ysd)
+        inputs_beta = inputs[estimation_idx]
+        contrast_a = self._contrast_np(model_a, inputs_beta) * float(model_a._ysd)
+        contrast_b = self._contrast_np(model_b, inputs_beta) * float(model_b._ysd)
         contrast = 0.5 * (contrast_a + contrast_b)
         disagreement = contrast_a - contrast_b
         if groups_arr is None:
@@ -442,6 +450,7 @@ class SmoothedOVR(DirectOVR):
             contrast,
             disagreement,
             local_folds,
+            controls=inputs_beta[:, self.d_:],
         )
         beta, Sigma = self._solve_beta(residualized_X, residualized_Y)
 
@@ -505,20 +514,18 @@ class SmoothedOVR(DirectOVR):
         return self
 
     def predict_contrast_components(
-        self, X: np.ndarray
+        self, X: np.ndarray, *, controls: Optional[np.ndarray] = None
     ) -> tuple[np.ndarray, np.ndarray]:
         """Evaluate both independently trained contrast models."""
         if self.contrast_models_ is None:
             raise RuntimeError("call fit() before predict_contrast_components().")
-        X_arr = np.asarray(X, dtype=float)
-        if X_arr.ndim != 2 or X_arr.shape[1] != self.d_:
-            raise ValueError(f"X must have shape (n, {self.d_}).")
+        inputs = self._contrast_inputs(X, controls)
         model_a, model_b = self.contrast_models_
-        contrast_a = self._contrast_np(model_a, X_arr) * float(model_a._ysd)
-        contrast_b = self._contrast_np(model_b, X_arr) * float(model_b._ysd)
+        contrast_a = self._contrast_np(model_a, inputs) * float(model_a._ysd)
+        contrast_b = self._contrast_np(model_b, inputs) * float(model_b._ysd)
         return contrast_a, contrast_b
 
-    def predict_contrast(self, X: np.ndarray) -> np.ndarray:
+    def predict_contrast(self, X: np.ndarray, *, controls: Optional[np.ndarray] = None) -> np.ndarray:
         """Evaluate the equally weighted two-model contrast ensemble."""
-        contrast_a, contrast_b = self.predict_contrast_components(X)
+        contrast_a, contrast_b = self.predict_contrast_components(X, controls=controls)
         return 0.5 * (contrast_a + contrast_b)
