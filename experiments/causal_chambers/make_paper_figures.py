@@ -1,7 +1,8 @@
 """Paper figures for the light-tunnel experiment.
 
 Computes the plotted values from saved measurements and analysis outputs (no
-refits, no hardware) and writes three PDFs:
+refits, no hardware) and writes four PDFs:
+  chamber_randomized.pdf   mean of Y against X in the randomized measurements (main text)
   chamber_physics.pdf      effects of X and H on Y from a grid run
   chamber_sample_size.pdf  error versus training size for the three designs
   chamber_angles.pdf       angle analysis of the binary design
@@ -39,8 +40,8 @@ ANGLE_STYLE = {
 MOMENT = "Kivva gamma-shift (fourth cumulants)"
 METHOD_STYLE = {
     "OLS": dict(color="#D55E00", marker="s", ls="--", label="OLS"),
-    "OLS E=0": dict(color="#A0A0A0", marker="v", ls=":", label="OLS, 0° only"),
-    "OLS E=1": dict(color="#555555", marker="^", ls="-.", label="OLS, 60° only"),
+    "OLS E=0": dict(color="#A0A0A0", marker="v", ls=":", label=r"OLS, $E$ = 0° only"),
+    "OLS E=1": dict(color="#555555", marker="^", ls="-.", label=r"OLS, $E$ = 60° only"),
     MOMENT: dict(color="#E69F00", marker="P", ls="-", label="Moment estimator"),
     "DOVR": dict(color="#56B4E9", marker="o", ls="--", label=r"Direct OVR", mfc="white"),
     "SOVR": dict(color="#0072B2", marker="o", ls="-", label=r"Smoothed OVR"),
@@ -52,10 +53,10 @@ CURVE_RC = {"axes.edgecolor": "#777777", "xtick.color": "#444444", "ytick.color"
 CURVE_SCALE = 5.5 / 7.4
 # Angle sets of the angle analysis; Okabe-Ito colors plus distinct markers and line styles.
 SET_STYLE = {
-    "0/20": dict(color="#E69F00", marker="v", ls="--", label="0° and 20°"),
-    "0/40": dict(color="#009E73", marker="s", ls="-.", label="0° and 40°"),
-    "0/60": dict(color="#0072B2", marker="o", ls="-", label="0° and 60°"),
-    "0/20/40/60": dict(color="#CC79A7", marker="D", ls=":", label="All four angles"),
+    "0/20": dict(color="#E69F00", marker="v", ls="--", label=r"$E\,\in\,\{$0°, 20°$\}$"),
+    "0/40": dict(color="#009E73", marker="s", ls="-.", label=r"$E\,\in\,\{$0°, 40°$\}$"),
+    "0/60": dict(color="#0072B2", marker="o", ls="-", label=r"$E\,\in\,\{$0°, 60°$\}$"),
+    "0/20/40/60": dict(color="#CC79A7", marker="D", ls=":", label=r"$E\,\in\,\{$0°, 20°, 40°, 60°$\}$"),
 }
 
 
@@ -81,6 +82,52 @@ def setup_style():
         "axes.spines.right": False,
         "pdf.fonttype": 42,
     })
+
+
+def randomized_values(campaign):
+    """Mean of Y at each X in the randomized measurements of the binary repetitions, by environment.
+
+    The mean averages the two values of H with equal weights, as in their distribution. The line of an
+    environment is its regression of Y on X and an indicator of H, at the same average over H."""
+    paths = sorted(campaign.glob("binary_rep*/measurements.csv"))
+    raw = pd.concat([pd.read_csv(path) for path in paths], ignore_index=True)
+    raw = raw[raw.kind.eq("reference") & raw.pol_2.isin(ANGLE_STYLE)]
+    rows = []
+    for angle, part in raw.groupby("pol_2"):
+        cells = part.groupby(["X", "red"]).Y.mean().unstack("red")
+        if cells.shape[1] != 2 or cells.isna().any().any():
+            raise ValueError("The randomized measurements do not cover every X at both values of H")
+        bright = part.red.eq(part.red.max()).to_numpy(float)
+        design = np.column_stack([part.X.to_numpy(float), bright, np.ones(len(part))])
+        coefficient, effect, intercept = np.linalg.lstsq(design, part.Y.to_numpy(float), rcond=None)[0]
+        for x, value in cells.mean(axis=1).items():
+            rows.append(dict(angle=angle, X=x, mean_Y=value, coefficient=coefficient,
+                             intercept=intercept + effect / 2, measurements=len(part),
+                             repetitions=len(paths)))
+    return pd.DataFrame(rows)
+
+
+def randomized_figure(frame, out):
+    fig, ax = plt.subplots(figsize=(2.6, 1.3), constrained_layout=True)
+    for angle, style in ANGLE_STYLE.items():
+        part = frame[frame.angle == angle].sort_values("X")
+        ax.plot(part.X, part.intercept + part.coefficient * part.X, lw=.7, color=style["color"], zorder=1)
+        ax.plot(part.X, part.mean_Y, style["marker"], color=style["color"], ms=2.8, zorder=2,
+                label=style["label"])
+    ax.set_xticks([8, 12, 16, 20, 24])
+    ax.set_yticks([500, 1000, 1500, 2000, 2500])
+    ax.set_ylim(350, 2900)
+    ax.set_xlabel(r"Brightness setting $X$")
+    ax.set_ylabel(r"Mean of $Y$")
+    ax.set_title(r"(b) Mean of $Y$ under do($X = x$)", loc="left")
+    # Legend of the grid figure (chamber_physics.pdf), inside the axes: the first entry is a text-only label.
+    handles, labels = ax.get_legend_handles_labels()
+    blank = matplotlib.lines.Line2D([], [], ls="none", marker="")
+    labels[-1] += "  (angle between polarizers)"
+    ax.legend([blank] + handles, [r"$E$:"] + labels, loc="upper left", ncol=3, frameon=False,
+              handlelength=1.0, handletextpad=.3, columnspacing=.8, borderaxespad=0, borderpad=.1)
+    fig.savefig(out / "chamber_randomized.pdf")
+    plt.close(fig)
 
 
 def physics_values(grid):
@@ -115,8 +162,46 @@ def physics_values(grid):
     return pd.DataFrame(rows)
 
 
-def physics_figure(frame, out):
-    fig, (left, right) = plt.subplots(1, 2, figsize=(3.45, 1.42), constrained_layout=True)
+def restriction_values(campaign, design="ternary"):
+    """Nuisance at 0 degrees and contrast at each X, from the confounded measurements of one assignment.
+
+    Both use the means of Y at each X, pooled over the repetitions. The nuisance subtracts the reference
+    coefficient times X; the reference is the coefficient of X in a regression of Y on X and indicators
+    of (E, H) in the randomized measurements of a repetition, averaged over the repetitions.
+
+    The nuisance uses the blocks with even numbers and the contrast those with odd numbers: the mean of Y
+    at 0 degrees enters both, so from the same measurements its noise would move a point along the fit."""
+    frames = [pd.read_csv(path) for path in sorted(campaign.glob(f"{design}_rep*/measurements.csv"))]
+    references = []
+    for raw in frames:
+        part = raw[raw.kind.eq("reference") & raw.pol_2.isin(ANGLE_STYLE)]
+        cells = pd.get_dummies(part.pol_2.astype(str) + ":" + part.red.astype(str), dtype=float).to_numpy()
+        design_matrix = np.column_stack([part.X.to_numpy(float), cells])
+        references.append(np.linalg.lstsq(design_matrix, part.Y.to_numpy(float), rcond=None)[0][0])
+    reference = float(np.mean(references))
+    raw = pd.concat(frames, ignore_index=True)
+    raw = raw[raw.kind.eq("confounded") & raw.pol_2.isin(ANGLE_STYLE)]
+    even = raw.block_id % 2 == 0
+    baseline = raw[even & raw.pol_2.eq(0.0)].groupby("X").Y.mean()
+    means = raw[~even].groupby(["X", "pol_2"]).Y.mean().unstack("pol_2")
+    if means.isna().any().any() or not baseline.index.equals(means.index):
+        raise ValueError("The confounded measurements do not cover every X in both environments and halves")
+    x = means.index.to_numpy(float)
+    contrast = (means[60.0] - means[0.0]).to_numpy()
+    nuisance = baseline.to_numpy() - reference * x
+    slope, intercept = np.polyfit(contrast, nuisance, 1)
+    residual = nuisance - (intercept + slope * contrast)
+    r_squared = 1 - residual @ residual / np.sum((nuisance - nuisance.mean()) ** 2)
+    return pd.DataFrame(dict(design=design, X=x, contrast=contrast, nuisance=nuisance, reference=reference,
+                             fit_slope=slope, fit_intercept=intercept, r_squared=r_squared,
+                             measurements=raw.groupby("X").size().reindex(means.index).to_numpy(),
+                             repetitions=len(frames)))
+
+
+def physics_figure(frame, restriction, out):
+    # The third panel is wider, so that its title fits.
+    fig, (left, right, third) = plt.subplots(1, 3, figsize=(5.5, 1.42), constrained_layout=True,
+                                             gridspec_kw=dict(width_ratios=[1, 1, 1.22]))
     reds = sorted(frame.red.unique())
     offsets = {0.0: -5, 60.0: 5}
     for angle, style in ANGLE_STYLE.items():
@@ -129,7 +214,7 @@ def physics_figure(frame, out):
     left.set_xlabel(r"Brightness setting $H$")
     left.set_ylabel(r"Coefficient of $X$")
     left.set_ylim(79.8, 85.6)
-    left.set_title(r"(b) Effect of $X$ on $Y$", loc="left")
+    left.set_title(r"(a) Effect of $X$ on $Y$", loc="left")
 
     # Effect of H at 60 degrees against the 0-degree effect times the fitted factor.
     base = frame[frame.angle == 0.0].sort_values("red")
@@ -149,13 +234,30 @@ def physics_figure(frame, out):
     right.set_yticks([0, 300, 600, 900])
     right.set_xlabel(r"Brightness setting $H$")
     right.set_ylabel(r"Change in mean of $Y$")
-    right.set_title(r"(c) Effect of $H$ on $Y$", loc="left")
-    # One legend for both panels; the first entry is a text-only label.
+    right.set_title(r"(b) Effect of $H$ on $Y$", loc="left")
+    # (c) Nuisance at 0 degrees against the contrast, one point per X; the two sides of 16 get different
+    # markers, so that values of X with the same contrast and the same nuisance show as a dot in a circle.
+    fit = restriction.iloc[0]
+    span = np.array([restriction.contrast.min(), restriction.contrast.max()])
+    third.plot(span, fit.fit_intercept + fit.fit_slope * span, color="0.6", lw=.7, zorder=1)
+    for mask, style in [(restriction.X < 16, dict(marker="o", ms=4.4, mfc="none", mec="0.15", mew=.7, label=r"$X<16$")),
+                        (restriction.X == 16, dict(marker="D", ms=2.8, mfc="0.6", mec="0.6", mew=.5, label=r"$X=16$")),
+                        (restriction.X > 16, dict(marker="o", ms=1.9, mfc="#0072B2", mec="#0072B2", mew=.5, label=r"$X>16$"))]:
+        part = restriction[mask]
+        third.plot(part.contrast, part.nuisance, ls="none", zorder=2, **style)
+    third.xaxis.set_major_locator(MaxNLocator(nbins=4, steps=[1, 2, 2.5, 5, 10]))
+    third.yaxis.set_major_locator(MaxNLocator(nbins=4, steps=[1, 2, 2.5, 5, 10]))
+    third.set_xlabel(r"Contrast $C(X)$")
+    third.set_ylabel(r"Nuisance at $E$ = 0°")
+    third.set_title("(c) IR in three-level assignment", loc="left")
+    third.legend(loc="upper right", frameon=False, handlelength=.9, handletextpad=.3, labelspacing=.25,
+                 borderaxespad=.1)
+    # One legend for panels (a) and (b), above them; the first entry is a text-only label.
     handles, labels = left.get_legend_handles_labels()
     blank = matplotlib.lines.Line2D([], [], ls="none", marker="")
     labels[-1] += "  (angle between polarizers)"
     fig.legend([blank] + handles, [r"$E$:"] + labels,
-               loc="outside upper center", ncol=3, frameon=False, handlelength=1.0,
+               loc="outside upper left", ncol=3, frameon=False, handlelength=1.0,
                handletextpad=.3, columnspacing=1.0, borderaxespad=.1)
     fig.savefig(out / "chamber_physics.pdf")
     plt.close(fig)
@@ -252,8 +354,8 @@ def angle_figure(summary, per_angle, out):
         left.yaxis.set_major_locator(MaxNLocator(nbins=4, steps=[1, 2, 2.5, 5, 10]))
         left.grid(axis="y", color="#DFE3E7", linewidth=.55 * CURVE_SCALE, zorder=0)
         left.set_axisbelow(True)
-        left.set_xlabel("Angle between polarizers")
-        left.set_ylabel(r"Effect of $H$, relative to 0°")
+        left.set_xlabel(r"$E$ (angle between polarizers)")
+        left.set_ylabel(r"Effect of $H$, relative to $E$ = 0°")
         left.set_title(r"(a) Effect of $H$ on $Y$", loc="left")
         shown = summary[summary.method.isin(["DOVR", "SOVR"])]
         for ax, method, title in [(axes[1], "DOVR", "(b) Direct OVR"), (axes[2], "SOVR", "(c) Smoothed OVR")]:
@@ -263,7 +365,7 @@ def angle_figure(summary, per_angle, out):
                 curve(ax, rows.n_per_angle, rows.mae_pct, rows.mae_se, style)
             size_axis(ax, [500, 1000, 2500, 5000], (shown.mae_pct + shown.mae_se).max() * 1.08)
             ax.set_title(title, loc="left")
-            ax.set_xlabel("Training size per angle")
+            ax.set_xlabel("Training size per environment")
         axes[1].set_ylabel("Error (% of reference)")
         legend(fig, axes[1:], ncol=4)
         fig.savefig(out / "chamber_angles.pdf")
@@ -284,6 +386,7 @@ def legend(fig, axes, ncol):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--campaign", type=Path, default=CAMPAIGN)
     parser.add_argument("--grid", type=Path, default=CAMPAIGN / "grid_before" / "measurements.csv")
     parser.add_argument("--analysis", type=Path, default=DATA / "final_campaign_20261110_analysis")
     parser.add_argument("--angle-analysis", default=str(DATA / "final_campaign_20261110_angle_analysis"),
@@ -293,9 +396,14 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     args.values_out.mkdir(parents=True, exist_ok=True)
     setup_style()
+    randomized = randomized_values(args.campaign)
+    randomized.to_csv(args.values_out / "randomized_plot_data.csv", index=False)
+    randomized_figure(randomized, args.out)
     physics = physics_values(args.grid)
     physics.to_csv(args.values_out / "physics_plot_data.csv", index=False)
-    physics_figure(physics, args.out)
+    restriction = restriction_values(args.campaign)
+    restriction.to_csv(args.values_out / "restriction_plot_data.csv", index=False)
+    physics_figure(physics, restriction, args.out)
     sizes = sample_size_values(args.analysis)
     sizes.to_csv(args.values_out / "sample_size_summary.csv", index=False)
     sample_size_figure(sizes, args.out)
